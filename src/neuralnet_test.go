@@ -1,11 +1,11 @@
-package gobrain
+package gonet
 
 import (
     // "testing"
     "math/rand"
 )
 
-func ExampleSimpleFeedForward() {
+func ExampleSimpleNeuralNet() {
     // set the random seed to 0
     rand.Seed(0)
 
@@ -17,8 +17,8 @@ func ExampleSimpleFeedForward() {
       {{1, 1}, {0}},
     }
 
-    // instantiate the Feed Forward
-    ff := &FeedForward{}
+    // instantiate the Neural Net
+    ff := &NeuralNet{}
 
     // initialize the Neural Network;
     // the networks structure will contain:

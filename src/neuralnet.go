@@ -1,5 +1,6 @@
-// Package gobrain provides basic neural networks algorithms.
-package gobrain
+// Package gonet provides a basic neural network
+
+package gonet
 
 import (
 	"fmt"
@@ -7,20 +8,13 @@ import (
 	"math"
 )
 
-// FeedForwad struct is used to represent a simple neural network
-type FeedForward struct {
-	// Number of input, hidden and output nodes
-	NInputs, NHiddens, NOutputs int
-	// Whether it is regression or not
-	Regression bool
-	// Activations for nodes
-	InputActivations, HiddenActivations, OutputActivations []float64
-	// ElmanRNN contexts
-	Contexts [][]float64
-	// Weights
-	InputWeights, OutputWeights [][]float64
-	// Last change in weights for momentum
-	InputChanges, OutputChanges [][]float64
+// NeuralNet struct is used to represent a simple neural network
+type NeuralNet struct {
+    NInputs, NHiddens, NOutputs int                                   // Number of input, hidden and output nodes
+	InputActivations, HiddenActivations, OutputActivations []float64  // Activations for nodes
+	Contexts [][]float64                                              // ElmanRNN contexts
+	InputWeights, OutputWeights [][]float64                           // Weights
+	InputChanges, OutputChanges [][]float64                           // Last change in weights for momentum
 }
 
 /*
@@ -30,7 +24,7 @@ the 'inputs' value is the number of inputs the network will have,
 the 'hiddens' value is the number of hidden nodes and
 the 'outputs' value is the number of the outputs of the network.
 */
-func (nn *FeedForward) Init(inputs, hiddens, outputs int) {
+func (nn *NeuralNet) Init(inputs, hiddens, outputs int) {
 	nn.NInputs = inputs + 1   // +1 for bias
 	nn.NHiddens = hiddens + 1 // +1 for bias
 	nn.NOutputs = outputs
@@ -72,7 +66,7 @@ the contexts provided in 'initValues' are used.
 
 When using 'initValues' note that contexts must have the same size of hidden nodes + 1 (bias node).
 */
-func (nn *FeedForward) SetContexts(nContexts int, initValues [][]float64) {
+func (nn *NeuralNet) SetContexts(nContexts int, initValues [][]float64) {
 	if initValues == nil {
 		initValues = make([][]float64, nContexts)
 
@@ -89,7 +83,7 @@ The Update method is used to activate the Neural Network.
 
 Given an array of inputs, it returns an array, of length equivalent of number of outputs, with values ranging from 0 to 1.
 */
-func (nn *FeedForward) Update(inputs []float64) []float64 {
+func (nn *NeuralNet) Update(inputs []float64) []float64 {
 	if len(inputs) != nn.NInputs-1 {
 		log.Fatal("Error: wrong number of inputs")
 	}
@@ -138,7 +132,7 @@ func (nn *FeedForward) Update(inputs []float64) []float64 {
 The BackPropagate method is used, when training the Neural Network,
 to back propagate the errors from network activation.
 */
-func (nn *FeedForward) BackPropagate(targets []float64, lRate, mFactor float64) float64 {
+func (nn *NeuralNet) BackPropagate(targets []float64, lRate, mFactor float64) float64 {
 	if len(targets) != nn.NOutputs {
 		log.Fatal("Error: wrong number of target values")
 	}
@@ -187,7 +181,7 @@ func (nn *FeedForward) BackPropagate(targets []float64, lRate, mFactor float64) 
 This method is used to train the Network, it will run the training operation for 'iterations' times
 and return the computed errors when training.
 */
-func (nn *FeedForward) Train(patterns [][][]float64, iterations int, lRate, mFactor float64, debug bool) []float64 {
+func (nn *NeuralNet) Train(patterns [][][]float64, iterations int, lRate, mFactor float64, debug bool) []float64 {
 	errors := make([]float64, iterations)
 
 	for i := 0; i < iterations; i++ {
@@ -209,7 +203,7 @@ func (nn *FeedForward) Train(patterns [][][]float64, iterations int, lRate, mFac
 	return errors
 }
 
-func (nn *FeedForward) Test(patterns [][][]float64) {
+func (nn *NeuralNet) Test(patterns [][][]float64) {
 	for _, p := range patterns {
 		fmt.Println(p[0], "->", nn.Update(p[0]), " : ", p[1])
 	}

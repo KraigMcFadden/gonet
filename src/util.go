@@ -1,4 +1,4 @@
-package gobrain
+package gonet
 
 import (
 	"math"
