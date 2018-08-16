@@ -9,26 +9,18 @@ func random(a, b float64) float64 {
 	return (b-a)*rand.Float64() + a
 }
 
-func matrix(I, J int) [][]float64 {
-	m := make([][]float64, I)
-	for i := 0; i < I; i++ {
-		m[i] = make([]float64, J)
+func sigmoid(vec Vector) float64 {
+	outVec := new(Vector).Init(vec.length, 0.0)
+	for i := 0; i < vec.length; i++ {
+		outVec[i] = 1.0 / (1.0 + math.Exp(-vec[i]))
 	}
-	return m
+	return outVec
 }
 
-func vector(I int, fill float64) []float64 {
-	v := make([]float64, I)
-	for i := 0; i < I; i++ {
-		v[i] = fill
+func dsigmoid(vec Vector) float64 {
+	outVec := new(Vector).Init(vec.length, 0.0)
+	for i := 0; i < vec.length; i++ {
+		outVec[i] = vec[i] * (1.0 - vec[i])
 	}
-	return v
-}
-
-func sigmoid(x float64) float64 {
-	return 1 / (1 + math.Exp(-x))
-}
-
-func dsigmoid(y float64) float64 {
-	return y * (1 - y)
+	return outVec
 }

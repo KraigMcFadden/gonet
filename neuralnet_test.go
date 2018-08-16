@@ -9,7 +9,7 @@ func ExampleSimpleNeuralNet() {
     // set the random seed to 0
     rand.Seed(0)
 
-    // create the XOR representation patter to train the network
+    // create the XOR representation pattern to train the network
     patterns := [][][]float64{
       {{0, 0}, {0}},
       {{0, 1}, {1}},

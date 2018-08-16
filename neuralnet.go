@@ -10,72 +10,47 @@ import (
 
 // NeuralNet struct is used to represent a simple neural network
 type NeuralNet struct {
-    NInputs, NHiddens, NOutputs int                                   // Number of input, hidden and output nodes
-	InputActivations, HiddenActivations, OutputActivations []float64  // Activations for nodes
-	Contexts [][]float64                                              // ElmanRNN contexts
-	InputWeights, OutputWeights [][]float64                           // Weights
-	InputChanges, OutputChanges [][]float64                           // Last change in weights for momentum
+    numNodes    []int          // Number of input, hidden and output nodes
+	zs          []Vector       // weight times input
+	alphas      []Vector       // activation(z)
+	activations []Function     // the activation function at each layer
+	weights     []Matrix       // Weights for each layer
+	changes     []Matrix       // Last change in weights for momentum
 }
 
 /*
 Initialize the neural network;
 
-the 'inputs' value is the number of inputs the network will have,
-the 'hiddens' value is the number of hidden nodes and
-the 'outputs' value is the number of the outputs of the network.
+nodesPerLayer is an array of how many nodes should go into each layer
 */
-func (nn *NeuralNet) Init(inputs, hiddens, outputs int) {
-	nn.NInputs = inputs + 1   // +1 for bias
-	nn.NHiddens = hiddens + 1 // +1 for bias
-	nn.NOutputs = outputs
+func (nn *NeuralNet) Init(nodesPerLayer []int) *NeuralNet {
+	
+	nn.numNodes    = make([]int, nodesPerLayer.length)
+	nn.zs          = make([]Vector, nodesPerLayer.length)
+	nn.alphas      = make([]Vector, nodesPerLayer.length)
+	nn.activations = make([]Function, nodesPerLayer.length)
+	nn.weights     = make([]Matrix, nodesPerLayer.length)
+	nn.changes     = make([]Matrix, nodesPerLayer.length)
 
-	nn.InputActivations = vector(nn.NInputs, 1.0)
-	nn.HiddenActivations = vector(nn.NHiddens, 1.0)
-	nn.OutputActivations = vector(nn.NOutputs, 1.0)
+	for i := 0; i < nodesPerLayer.length; i++ {
+		nn.numNodes[i] = nodesPerLayer[i]
 
-	nn.InputWeights = matrix(nn.NInputs, nn.NHiddens)
-	nn.OutputWeights = matrix(nn.NHiddens, nn.NOutputs)
+		if i < nodesPerLayer.length - 1 {
+			nn.zs[i] = new(Vector).Init(nodesPerLayer[i] + 1, 1.0)  // add one for bias term
+			nn.alphas[i] = new(Vector).Init(nodesPerLayer[i] + 1, 1.0)
+		} else {
+			nn.zs[i] = new(Vector).Init(nodesPerLayer[i], 0.0)  // no bias term on output layer
+			nn.alphas[i] = new(Vector).Init(nodesPerLayer[i], 0.0)
+		}
 
-	for i := 0; i < nn.NInputs; i++ {
-		for j := 0; j < nn.NHiddens; j++ {
-			nn.InputWeights[i][j] = random(-1, 1)
+		if i > 0 {
+			nn.activations[i] = sigmoid
+			nn.weights[i] = new(Matrix).Init(nodesPerLayer[i - 1], nodesPerLayer[i]).RandomFill()
+			nn.changes[i] = new(Matrix).Init(nodesPerLayer[i - 1], nodesPerLayer[i])
 		}
 	}
 
-	for i := 0; i < nn.NHiddens; i++ {
-		for j := 0; j < nn.NOutputs; j++ {
-			nn.OutputWeights[i][j] = random(-1, 1)
-		}
-	}
-
-	nn.InputChanges = matrix(nn.NInputs, nn.NHiddens)
-	nn.OutputChanges = matrix(nn.NHiddens, nn.NOutputs)
-}
-
-/*
-Set the number of contexts to add to the network.
-
-By default the network do not have any context so it is a simple Feed Forward network,
-when contexts are added the network behaves like an Elman's SRN (Simple Recurrent Network).
-
-The first parameter (nContexts) is used to indicate the number of contexts to be used,
-the second parameter (initValues) can be used to create custom initialized contexts.
-
-If 'initValues' is set, the first parameter 'nContexts' is ignored and
-the contexts provided in 'initValues' are used.
-
-When using 'initValues' note that contexts must have the same size of hidden nodes + 1 (bias node).
-*/
-func (nn *NeuralNet) SetContexts(nContexts int, initValues [][]float64) {
-	if initValues == nil {
-		initValues = make([][]float64, nContexts)
-
-		for i := 0; i < nContexts; i++ {
-			initValues[i] = vector(nn.NHiddens, 0.5)
-		}
-	}
-
-	nn.Contexts = initValues
+	return nn;
 }
 
 /*
@@ -83,64 +58,42 @@ The Update method is used to activate the Neural Network.
 
 Given an array of inputs, it returns an array, of length equivalent of number of outputs, with values ranging from 0 to 1.
 */
-func (nn *NeuralNet) Update(inputs []float64) []float64 {
-	if len(inputs) != nn.NInputs-1 {
+func (nn *NeuralNet) Update(inputs Vector) Vector {
+	if len(inputs) != nn.numNodes[0] {
 		log.Fatal("Error: wrong number of inputs")
 	}
 
-	for i := 0; i < nn.NInputs-1; i++ {
-		nn.InputActivations[i] = inputs[i]
-	}
+	for n := 0; n < nn.numNodes.length; n++ {
 
-	for i := 0; i < nn.NHiddens-1; i++ {
-		var sum float64
-
-		for j := 0; j < nn.NInputs; j++ {
-			sum += nn.InputActivations[j] * nn.InputWeights[j][i]
-		}
-
-		// compute contexts sum
-		for k := 0; k < len(nn.Contexts); k++ {
-			for j := 0; j < nn.NHiddens-1; j++ {
-				sum += nn.Contexts[k][j]
+			// this the input layer
+			if n == 0 {
+				for i := 0; i < nn.numNodes[n]; i++ {
+					nn.zs[0][i] = inputs[i]
+					nn.alphas[0][i] = inputs[i]
+				}
 			}
-		}
 
-		nn.HiddenActivations[i] = sigmoid(sum)
+			nn.zs[n] = nn.weights[n].Apply(nn.zs[n - 1])
+			nn.alphas[n] = nn.activations[n](nn.zs[n])
+		}
 	}
 
-	// update the contexts
-	if len(nn.Contexts) > 0 {
-		for i := len(nn.Contexts) - 1; i > 0; i-- {
-			nn.Contexts[i] = nn.Contexts[i-1]
-		}
-		nn.Contexts[0] = nn.HiddenActivations
-	}
-
-	for i := 0; i < nn.NOutputs; i++ {
-		var sum float64
-		for j := 0; j < nn.NHiddens; j++ {
-			sum += nn.HiddenActivations[j] * nn.OutputWeights[j][i]
-		}
-
-		nn.OutputActivations[i] = sigmoid(sum)
-	}
-
-	return nn.OutputActivations
+	return nn.alphas[nn.alphas.length - 1]
 }
 /*
 The BackPropagate method is used, when training the Neural Network,
 to back propagate the errors from network activation.
 */
-func (nn *NeuralNet) BackPropagate(targets []float64, lRate, mFactor float64) float64 {
-	if len(targets) != nn.NOutputs {
+func (nn *NeuralNet) BackPropagate(labels Vector, eta, mFactor float64) float64 {
+	if len(labels) != nn.numNodes[nn.numNodes.length - 1] {
 		log.Fatal("Error: wrong number of target values")
 	}
 
-	outputDeltas := vector(nn.NOutputs, 0.0)
-	for i := 0; i < nn.NOutputs; i++ {
-		outputDeltas[i] = dsigmoid(nn.OutputActivations[i]) * (targets[i] - nn.OutputActivations[i])
-	}
+	numOutputs := nn.numNodes[nn.numNodes.length - 1]
+	outputDeltas := dsigmoid(nn.alphas[nn.alphas.length - 1].Mult(labels.Sub(nn.alphas[nn.alphas.length - 1])))
+	// for i := 0; i < numOutputs; i++ {
+	// 	outputDeltas[i] = dsigmoid(nn.OutputActivations[i]) * (labels[i] - nn.OutputActivations[i])
+	// }
 
 	hiddenDeltas := vector(nn.NHiddens, 0.0)
 	for i := 0; i < nn.NHiddens; i++ {
@@ -156,7 +109,7 @@ func (nn *NeuralNet) BackPropagate(targets []float64, lRate, mFactor float64) fl
 	for i := 0; i < nn.NHiddens; i++ {
 		for j := 0; j < nn.NOutputs; j++ {
 			change := outputDeltas[j] * nn.HiddenActivations[i]
-			nn.OutputWeights[i][j] = nn.OutputWeights[i][j] + lRate*change + mFactor*nn.OutputChanges[i][j]
+			nn.OutputWeights[i][j] = nn.OutputWeights[i][j] + eta*change + mFactor*nn.OutputChanges[i][j]
 			nn.OutputChanges[i][j] = change
 		}
 	}
@@ -164,15 +117,15 @@ func (nn *NeuralNet) BackPropagate(targets []float64, lRate, mFactor float64) fl
 	for i := 0; i < nn.NInputs; i++ {
 		for j := 0; j < nn.NHiddens; j++ {
 			change := hiddenDeltas[j] * nn.InputActivations[i]
-			nn.InputWeights[i][j] = nn.InputWeights[i][j] + lRate*change + mFactor*nn.InputChanges[i][j]
+			nn.InputWeights[i][j] = nn.InputWeights[i][j] + eta*change + mFactor*nn.InputChanges[i][j]
 			nn.InputChanges[i][j] = change
 		}
 	}
 
 	var e float64
 
-	for i := 0; i < len(targets); i++ {
-		e += 0.5 * math.Pow(targets[i]-nn.OutputActivations[i], 2)
+	for i := 0; i < len(labels); i++ {
+		e += 0.5 * math.Pow(labels[i]-nn.OutputActivations[i], 2)
 	}
 
 	return e
@@ -181,7 +134,7 @@ func (nn *NeuralNet) BackPropagate(targets []float64, lRate, mFactor float64) fl
 This method is used to train the Network, it will run the training operation for 'iterations' times
 and return the computed errors when training.
 */
-func (nn *NeuralNet) Train(patterns [][][]float64, iterations int, lRate, mFactor float64, debug bool) []float64 {
+func (nn *NeuralNet) Train(patterns [][][]float64, iterations int, eta, mFactor float64, debug bool) []float64 {
 	errors := make([]float64, iterations)
 
 	for i := 0; i < iterations; i++ {
@@ -189,7 +142,7 @@ func (nn *NeuralNet) Train(patterns [][][]float64, iterations int, lRate, mFacto
 		for _, p := range patterns {
 			nn.Update(p[0])
 
-			tmp := nn.BackPropagate(p[1], lRate, mFactor)
+			tmp := nn.BackPropagate(p[1], eta, mFactor)
 			e += tmp
 		}
 
