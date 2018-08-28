@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	//"strconv"
 )
 
 // NeuralNet struct is used to represent a simple neural network
@@ -33,7 +34,7 @@ func (nn *NeuralNet) Init(nodesPerLayer []int) *NeuralNet {
 	nn.numNodes    = make([]int, layers)
 	nn.zs          = make([]Vector, layers)
 	nn.alphas      = make([]Vector, layers)
-	nn.activations = make([]Function, layers)
+	nn.activations = make([]ActivationFunction, layers)
 	nn.weights     = make([]Matrix, layers)
 	nn.changes     = make([]Matrix, layers)
 
@@ -50,8 +51,8 @@ func (nn *NeuralNet) Init(nodesPerLayer []int) *NeuralNet {
 
 		if i > 0 {
 			nn.activations[i] = sigmoid
-			nn.weights[i] = new(Matrix).Init(nodesPerLayer[i - 1], nodesPerLayer[i]).RandomFill()
-			nn.changes[i] = new(Matrix).Init(nodesPerLayer[i - 1], nodesPerLayer[i])
+			nn.weights[i] = new(Matrix).Init(len(nn.alphas[i]), len(nn.alphas[i - 1])).RandomFill()
+			nn.changes[i] = new(Matrix).Init(len(nn.alphas[i]), len(nn.alphas[i - 1]))
 		}
 	}
 
@@ -63,7 +64,7 @@ The Update method is used to activate the Neural Network.
 
 Given an array of inputs, it returns an array, of length equivalent of number of outputs, with values ranging from 0 to 1.
 */
-func (nn *NeuralNet) Update(inputs Vector) *Vector {
+func (nn *NeuralNet) Update(inputs Vector) Vector {
 	if len(inputs) != nn.numNodes[0] {
 		log.Fatal("Error: wrong number of inputs")
 	}
@@ -76,10 +77,17 @@ func (nn *NeuralNet) Update(inputs Vector) *Vector {
 				nn.zs[0][i] = inputs[i]
 				nn.alphas[0][i] = inputs[i]
 			}
+			continue
 		}
 
 		nn.zs[n] = nn.weights[n].Apply(nn.zs[n - 1])
 		nn.alphas[n] = nn.activations[n](nn.zs[n])
+
+		// // set biases back to 1 if they were messed up
+		// if n < nn.numLayers - 1 {
+		// 	nn.zs[n][nn.numNodes[n]] = 1.0
+		// 	nn.alphas[n][nn.numNodes[n]] = 1.0
+		// }
 	}
 
 	return nn.alphas[nn.numLayers - 1]
@@ -94,16 +102,14 @@ func (nn *NeuralNet) BackPropagate(labels Vector, eta, mFactor float64) float64 
 		log.Fatal("Error: wrong number of target values")
 	}
 
-	numOutputs := nn.numNodes[outLayer]
-	outputDeltas := dsigmoid(nn.alphas[outLayer].Mult(labels.Sub(nn.alphas[outLayer])))
+	outputDeltas := dsigmoid(nn.alphas[outLayer]).Mult(labels.Sub(nn.alphas[outLayer]))
 
 	// for i := 0; i < numOutputs; i++ {
 	// 	outputDeltas[i] = dsigmoid(nn.OutputActivations[i]) * (labels[i] - nn.OutputActivations[i])
 	// }
 
-	epsilons := nn.weights[outLayer].Apply(outputDeltas)
-	e := epsilons.Sum()
-	hiddenDeltas := dsigmoid(nn.alphas[outLayer - 1]).Scale(e)
+	epsilons := nn.weights[outLayer].ReverseApply(outputDeltas)
+	hiddenDeltas := dsigmoid(nn.alphas[outLayer - 1]).Mult(epsilons)
 
 	// for i := 0; i < nn.NHiddens; i++ {
 	// 	for j := 0; j < nn.NOutputs; j++ {
@@ -115,7 +121,7 @@ func (nn *NeuralNet) BackPropagate(labels Vector, eta, mFactor float64) float64 
 
 	momentum := nn.changes[outLayer].Scale(mFactor)
 	nn.changes[outLayer] = nn.alphas[outLayer - 1].Cross(outputDeltas)
-	nn.weights[outLayer].Add(nn.changes[outLayer].Scale(eta)).Add(momentum)
+	nn.weights[outLayer] = nn.weights[outLayer].Add(nn.changes[outLayer].Scale(eta)).Add(momentum)
 
 	// for i := 0; i < nn.NInputs; i++ {
 	// 	for j := 0; j < nn.NHiddens; j++ {
@@ -127,9 +133,9 @@ func (nn *NeuralNet) BackPropagate(labels Vector, eta, mFactor float64) float64 
 
 	momentum = nn.changes[outLayer - 1].Scale(mFactor)
 	nn.changes[outLayer - 1] = nn.alphas[outLayer - 2].Cross(hiddenDeltas)
-	nn.weights[outLayer - 1].Add(nn.changes[outLayer - 1].Scale(eta)).Add(momentum)
+	nn.weights[outLayer - 1] = nn.weights[outLayer - 1].Add(nn.changes[outLayer - 1].Scale(eta)).Add(momentum)
 
-	e = 0
+	var e float64
 	for i := 0; i < len(labels); i++ {
 		e += 0.5 * math.Pow(labels[i] - nn.alphas[outLayer][i], 2)
 	}

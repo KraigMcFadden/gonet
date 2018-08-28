@@ -26,7 +26,7 @@ func ExampleSimpleNeuralNet() {
     // the training will run for 1000 epochs
     // the learning rate is set to 0.6 and the momentum factor to 0.4
     // use true in the last parameter to receive reports about the learning error
-    ff.Train(patterns, 1000, 0.6, 0.4, false)
+    ff.Train(patterns, 1000, 0.6, 0.4, true)
 
     // testing the network
     ff.Test(patterns)
