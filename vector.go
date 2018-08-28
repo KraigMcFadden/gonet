@@ -1,14 +1,26 @@
+package gonet
+
 type Vector []float64
 
 func (v *Vector) Init(length int, initialFill float64) *Vector {
-	v := make([]float64, length)
+	v = make([]float64, length)
 	for i := 0; i < length; i++ {
 		v[i] = fill
 	}
 	return v
 }
 
-func (v *Vector) Mult(vec Vector) {
+func (v *Vector) Cross(vec Vector) *Matrix {
+	outMatrix := new(Matrix).Init(len(v), len(vec))
+	for i := 0; i < len(v); i++ {
+	 	for j := 0; j < len(vec); j++ {
+	 		outMatrix[i][j] = v[i] * vec[j]
+	 	}
+	}
+	return outMatrix
+}
+
+func (v *Vector) Mult(vec Vector) *Vector {
 	outVec := new(Vector).Init(v.length, 0.0)
 	for i := 0; i < len(v); i++ {
 		outVec[i] = v[i] * vec[i]
@@ -16,7 +28,7 @@ func (v *Vector) Mult(vec Vector) {
 	return outVec
 }
 
-func (v *Vector) Scale(val float64) {
+func (v *Vector) Scale(val float64) *Vector {
 	outVec := new(Vector).Init(v.length, 0.0)
 	for i := 0; i < len(v); i++ {
 		outVec[i] = v[i] * val
@@ -24,7 +36,7 @@ func (v *Vector) Scale(val float64) {
 	return outVec
 }
 
-func (v *Vector) Sub(vec Vector) {
+func (v *Vector) Sub(vec Vector) *Vector {
 	outVec := new(Vector).Init(v.length, 0.0)
 	for i := 0; i < len(v); i++ {
 		outVec[i] = v[i] - vec[i]

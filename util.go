@@ -5,6 +5,8 @@ import (
 	"math/rand"
 )
 
+type ActivationFunction func(Vector)
+
 func random(a, b float64) float64 {
 	return (b-a)*rand.Float64() + a
 }

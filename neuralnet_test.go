@@ -17,13 +17,10 @@ func ExampleSimpleNeuralNet() {
       {{1, 1}, {0}},
     }
 
-    // instantiate the Neural Net
-    ff := &NeuralNet{}
-
     // initialize the Neural Network;
     // the networks structure will contain:
     // 2 inputs, 2 hidden nodes and 1 output.
-    ff.Init(2, 2, 1)
+    ff := new(NeuralNet).Init([]int{2, 2, 1})
 
     // train the network using the XOR patterns
     // the training will run for 1000 epochs

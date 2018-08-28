@@ -1,7 +1,9 @@
+package gonet
+
 type Matrix [][]float64
 
 func (m *Matrix) Init(row, col int) *Matrix {
-	m := make([][]float64, col)
+	m = make([][]float64, col)
 	for i := 0; i < col; i++ {
 		m[i] = make([]float64, row)
 	}
@@ -16,7 +18,7 @@ func (m *Matrix) RandomFill() *Matrix {
 	}
 }
 
-func (m *Matrix) Apply(vec Vector) Vector {
+func (m *Matrix) Apply(vec Vector) *Vector {
 	if vec.length != m[0].length {
 		log.Fatal("Dims do not match")
 	}
@@ -33,15 +35,35 @@ func (m *Matrix) Apply(vec Vector) Vector {
 	return outVec
 }
 
+func (m *Matrix) Add(mat Matrix) *Matrix {
+	outMat := new(Matrix).Init(m.NumRows(), m.NumCols())
+	for i := 0; i < m.NumRows(); i++ {
+		for j := 0; j < m.NumCols(); j++ {
+			outMat[i][j] = m[i][j] + mat[i][j]
+		}
+	}
+	return outMat
+}
+
+func (m *Matrix) Scale(val float64) *Matrix {
+	outMat := new(Matrix).Init(m.NumRows(), m.NumCols())
+	for i := 0; i < m.NumRows(); i++ {
+		for j := 0; j < m.NumCols(); j++ {
+			outMat[i][j] = m[i][j] * val
+		}
+	}
+	return outMat
+}
+
 func (m *Matrix) NumRows() int {
-	return m[0].length
+	return len(m[0])
 }
 
 func (m *Matrix) NumCols() int {
-	returm m.length
+	return len(m)
 }
 
-func (m *Matrix) GetCol(index int) Vector {
+func (m *Matrix) GetCol(index int) *Vector {
 	return m[index]
 }
 

@@ -13,7 +13,7 @@ type NeuralNet struct {
     numNodes    []int          // Number of input, hidden and output nodes
 	zs          []Vector       // weight times input
 	alphas      []Vector       // activation(z)
-	activations []Function     // the activation function at each layer
+	activations []ActivationFunction         // the activation function at each layer
 	weights     []Matrix       // Weights for each layer
 	changes     []Matrix       // Last change in weights for momentum
 
@@ -63,24 +63,23 @@ The Update method is used to activate the Neural Network.
 
 Given an array of inputs, it returns an array, of length equivalent of number of outputs, with values ranging from 0 to 1.
 */
-func (nn *NeuralNet) Update(inputs Vector) Vector {
+func (nn *NeuralNet) Update(inputs Vector) *Vector {
 	if len(inputs) != nn.numNodes[0] {
 		log.Fatal("Error: wrong number of inputs")
 	}
 
 	for n := 0; n < nn.numLayers; n++ {
 
-			// this is the input layer
-			if n == 0 {
-				for i := 0; i < nn.numNodes[n]; i++ {
-					nn.zs[0][i] = inputs[i]
-					nn.alphas[0][i] = inputs[i]
-				}
+		// this is the input layer
+		if n == 0 {
+			for i := 0; i < nn.numNodes[n]; i++ {
+				nn.zs[0][i] = inputs[i]
+				nn.alphas[0][i] = inputs[i]
 			}
-
-			nn.zs[n] = nn.weights[n].Apply(nn.zs[n - 1])
-			nn.alphas[n] = nn.activations[n](nn.zs[n])
 		}
+
+		nn.zs[n] = nn.weights[n].Apply(nn.zs[n - 1])
+		nn.alphas[n] = nn.activations[n](nn.zs[n])
 	}
 
 	return nn.alphas[nn.numLayers - 1]
@@ -96,7 +95,8 @@ func (nn *NeuralNet) BackPropagate(labels Vector, eta, mFactor float64) float64 
 	}
 
 	numOutputs := nn.numNodes[outLayer]
-	outputDeltas := dsigmoid(nn.alphas[outLayer].Mult(labels.Sub(nn.alphas[outLayer)))
+	outputDeltas := dsigmoid(nn.alphas[outLayer].Mult(labels.Sub(nn.alphas[outLayer])))
+
 	// for i := 0; i < numOutputs; i++ {
 	// 	outputDeltas[i] = dsigmoid(nn.OutputActivations[i]) * (labels[i] - nn.OutputActivations[i])
 	// }
@@ -113,22 +113,26 @@ func (nn *NeuralNet) BackPropagate(labels Vector, eta, mFactor float64) float64 
 	// 	}
 	// }
 
-	
+	momentum := nn.changes[outLayer].Scale(mFactor)
+	nn.changes[outLayer] = nn.alphas[outLayer - 1].Cross(outputDeltas)
+	nn.weights[outLayer].Add(nn.changes[outLayer].Scale(eta)).Add(momentum)
 
-	for i := 0; i < nn.NInputs; i++ {
-		for j := 0; j < nn.NHiddens; j++ {
-			change := hiddenDeltas[j] * nn.InputActivations[i]
-			nn.InputWeights[i][j] = nn.InputWeights[i][j] + eta*change + mFactor*nn.InputChanges[i][j]
-			nn.InputChanges[i][j] = change
-		}
-	}
+	// for i := 0; i < nn.NInputs; i++ {
+	// 	for j := 0; j < nn.NHiddens; j++ {
+	// 		change := hiddenDeltas[j] * nn.InputActivations[i]
+	// 		nn.InputWeights[i][j] = nn.InputWeights[i][j] + eta*change + mFactor*nn.InputChanges[i][j]
+	// 		nn.InputChanges[i][j] = change
+	// 	}
+	// }
 
-	var e float64
+	momentum = nn.changes[outLayer - 1].Scale(mFactor)
+	nn.changes[outLayer - 1] = nn.alphas[outLayer - 2].Cross(hiddenDeltas)
+	nn.weights[outLayer - 1].Add(nn.changes[outLayer - 1].Scale(eta)).Add(momentum)
 
+	e = 0
 	for i := 0; i < len(labels); i++ {
-		e += 0.5 * math.Pow(labels[i]-nn.OutputActivations[i], 2)
+		e += 0.5 * math.Pow(labels[i] - nn.alphas[outLayer][i], 2)
 	}
-
 	return e
 }
 /*
