@@ -14,6 +14,7 @@ type NeuralNet struct {
     numNodes    []int          // Number of input, hidden and output nodes
 	zs          []Vector       // weight times input
 	alphas      []Vector       // activation(z)
+	biases      []Vector       // bias values
 	activations []ActivationFunction         // the activation function at each layer
 	weights     []Matrix       // Weights for each layer
 	changes     []Matrix       // Last change in weights for momentum
@@ -34,6 +35,7 @@ func (nn *NeuralNet) Init(nodesPerLayer []int) *NeuralNet {
 	nn.numNodes    = make([]int, layers)
 	nn.zs          = make([]Vector, layers)
 	nn.alphas      = make([]Vector, layers)
+	nn.biases      = make([]Vector, layers)
 	nn.activations = make([]ActivationFunction, layers)
 	nn.weights     = make([]Matrix, layers)
 	nn.changes     = make([]Matrix, layers)
@@ -41,18 +43,14 @@ func (nn *NeuralNet) Init(nodesPerLayer []int) *NeuralNet {
 	for i := 0; i < layers; i++ {
 		nn.numNodes[i] = nodesPerLayer[i]
 
-		if i < layers - 1 {
-			nn.zs[i] = new(Vector).Init(nodesPerLayer[i] + 1, 1.0)  // add one for bias term
-			nn.alphas[i] = new(Vector).Init(nodesPerLayer[i] + 1, 1.0)
-		} else {
-			nn.zs[i] = new(Vector).Init(nodesPerLayer[i], 0.0)  // no bias term on output layer
-			nn.alphas[i] = new(Vector).Init(nodesPerLayer[i], 0.0)
-		}
+		nn.zs[i] = new(Vector).Init(nodesPerLayer[i], 0.0)
+		nn.alphas[i] = new(Vector).Init(nodesPerLayer[i], 0.0)
 
 		if i > 0 {
+			nn.biases[i] = new(Vector).Init(nodesPerLayer[i], 0.0).RandomFill()
 			nn.activations[i] = sigmoid
-			nn.weights[i] = new(Matrix).Init(len(nn.alphas[i]), len(nn.alphas[i - 1])).RandomFill()
-			nn.changes[i] = new(Matrix).Init(len(nn.alphas[i]), len(nn.alphas[i - 1]))
+			nn.weights[i] = new(Matrix).Init(nodesPerLayer[i], nodesPerLayer[i - 1]).RandomFill()
+			nn.changes[i] = new(Matrix).Init(nodesPerLayer[i], nodesPerLayer[i - 1])
 		}
 	}
 
@@ -69,25 +67,16 @@ func (nn *NeuralNet) Update(inputs Vector) Vector {
 		log.Fatal("Error: wrong number of inputs")
 	}
 
-	for n := 0; n < nn.numLayers; n++ {
+	// copy inputs
+	for i := 0; i < len(inputs); i++ {
+		nn.zs[0][i] = inputs[i]
+		nn.alphas[0][i] = inputs[i]
+	}
 
-		// this is the input layer
-		if n == 0 {
-			for i := 0; i < nn.numNodes[n]; i++ {
-				nn.zs[0][i] = inputs[i]
-				nn.alphas[0][i] = inputs[i]
-			}
-			continue
-		}
-
-		nn.zs[n] = nn.weights[n].Apply(nn.zs[n - 1])
+	// feedforward through layers
+	for n := 1; n < nn.numLayers; n++ {
+		nn.zs[n] = nn.weights[n].Apply(nn.alphas[n - 1]).Add(nn.biases[n])
 		nn.alphas[n] = nn.activations[n](nn.zs[n])
-
-		// // set biases back to 1 if they were messed up
-		// if n < nn.numLayers - 1 {
-		// 	nn.zs[n][nn.numNodes[n]] = 1.0
-		// 	nn.alphas[n][nn.numNodes[n]] = 1.0
-		// }
 	}
 
 	return nn.alphas[nn.numLayers - 1]
@@ -101,15 +90,15 @@ func (nn *NeuralNet) BackPropagate(labels Vector, eta, mFactor float64) float64 
 	if len(labels) != nn.numNodes[outLayer] {
 		log.Fatal("Error: wrong number of target values")
 	}
-
-	outputDeltas := dsigmoid(nn.alphas[outLayer]).Mult(labels.Sub(nn.alphas[outLayer]))
+	
+	outputDeltas := dsigmoid(nn.zs[outLayer]).Mult(nn.alphas[outLayer].Sub(labels))
 
 	// for i := 0; i < numOutputs; i++ {
 	// 	outputDeltas[i] = dsigmoid(nn.OutputActivations[i]) * (labels[i] - nn.OutputActivations[i])
 	// }
 
 	epsilons := nn.weights[outLayer].ReverseApply(outputDeltas)
-	hiddenDeltas := dsigmoid(nn.alphas[outLayer - 1]).Mult(epsilons)
+	hiddenDeltas := dsigmoid(nn.zs[outLayer - 1]).Mult(epsilons)
 
 	// for i := 0; i < nn.NHiddens; i++ {
 	// 	for j := 0; j < nn.NOutputs; j++ {
@@ -120,8 +109,9 @@ func (nn *NeuralNet) BackPropagate(labels Vector, eta, mFactor float64) float64 
 	// }
 
 	momentum := nn.changes[outLayer].Scale(mFactor)
-	nn.changes[outLayer] = nn.alphas[outLayer - 1].Cross(outputDeltas)
-	nn.weights[outLayer] = nn.weights[outLayer].Add(nn.changes[outLayer].Scale(eta)).Add(momentum)
+	nn.changes[outLayer] = outputDeltas.Cross(nn.alphas[outLayer - 1])
+	nn.weights[outLayer] = nn.weights[outLayer].Sub(nn.changes[outLayer].Scale(eta)).Sub(momentum)
+	nn.biases[outLayer] = nn.biases[outLayer].Sub(outputDeltas.Scale(eta))
 
 	// for i := 0; i < nn.NInputs; i++ {
 	// 	for j := 0; j < nn.NHiddens; j++ {
@@ -132,8 +122,9 @@ func (nn *NeuralNet) BackPropagate(labels Vector, eta, mFactor float64) float64 
 	// }
 
 	momentum = nn.changes[outLayer - 1].Scale(mFactor)
-	nn.changes[outLayer - 1] = nn.alphas[outLayer - 2].Cross(hiddenDeltas)
-	nn.weights[outLayer - 1] = nn.weights[outLayer - 1].Add(nn.changes[outLayer - 1].Scale(eta)).Add(momentum)
+	nn.changes[outLayer - 1] = hiddenDeltas.Cross(nn.alphas[outLayer - 2])
+	nn.weights[outLayer - 1] = nn.weights[outLayer - 1].Sub(nn.changes[outLayer - 1].Scale(eta)).Sub(momentum)
+	nn.biases[outLayer - 1] = nn.biases[outLayer - 1].Sub(hiddenDeltas.Scale(eta))
 
 	var e float64
 	for i := 0; i < len(labels); i++ {

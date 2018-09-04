@@ -10,7 +10,7 @@ type Matrix [][]float64
 func (m Matrix) Init(row, col int) Matrix {
 	m = make(Matrix, row)
 	for i := 0; i < row; i++ {
-		m[i] = make([]float64, col)
+		m[i] = new(Vector).Init(col, 0.0)
 	}
 	return m
 }
@@ -18,7 +18,7 @@ func (m Matrix) Init(row, col int) Matrix {
 func (m Matrix) RandomFill() Matrix {
 	for i := 0; i < m.NumRows(); i++ {
 		for j := 0; j < m.NumCols(); j++ {
-			m[i][j] = random(-1, 1)
+			m[i][j] = random(-1.0, 1.0)
 		}
 	}
 	return m
@@ -66,6 +66,22 @@ func (m Matrix) Add(mat Matrix) Matrix {
 	for i := 0; i < m.NumRows(); i++ {
 		for j := 0; j < m.NumCols(); j++ {
 			outMat[i][j] = m[i][j] + mat[i][j]
+		}
+	}
+	return outMat
+}
+
+func (m Matrix) Sub(mat Matrix) Matrix {
+	if m.NumRows() != mat.NumRows() || m.NumCols() != mat.NumCols() {
+		log.Fatal("Matrix.Sub(): Dims do not match! This rows: " + strconv.Itoa(m.NumRows()) + 
+			" This cols: " + strconv.Itoa(m.NumCols()) + " That rows: " + strconv.Itoa(mat.NumRows()) + 
+			" That cols: " + strconv.Itoa(mat.NumCols()))
+	}
+
+	outMat := new(Matrix).Init(m.NumRows(), m.NumCols())
+	for i := 0; i < m.NumRows(); i++ {
+		for j := 0; j < m.NumCols(); j++ {
+			outMat[i][j] = m[i][j] - mat[i][j]
 		}
 	}
 	return outMat

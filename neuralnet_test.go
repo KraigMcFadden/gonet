@@ -1,7 +1,6 @@
 package gonet
 
 import (
-    // "testing"
     "math/rand"
 )
 
@@ -23,10 +22,10 @@ func ExampleSimpleNeuralNet() {
     ff := new(NeuralNet).Init([]int{2, 2, 1})
 
     // train the network using the XOR patterns
-    // the training will run for 1000 epochs
-    // the learning rate is set to 0.6 and the momentum factor to 0.4
+    // the training will run for 100000 epochs
+    // the learning rate is set to 0.1 and the momentum factor to 0.05
     // use true in the last parameter to receive reports about the learning error
-    ff.Train(patterns, 1000, 0.6, 0.4, true)
+    ff.Train(patterns, 100000, 0.1, 0.05, false)
 
     // testing the network
     ff.Test(patterns)
@@ -35,9 +34,9 @@ func ExampleSimpleNeuralNet() {
     inputs := []float64{1, 1}
     ff.Update(inputs)
     
-    // Output:
-    // [0 0] -> [0.05750394570844524]  :  [0]
-    // [0 1] -> [0.9301006350712102]  :  [1]
-    // [1 0] -> [0.927809966227284]  :  [1]
-    // [1 1] -> [0.09740879532462095]  :  [0]
+    // Output: 
+    // [0 0] -> [0.009734444150547994]  :  [0]
+    // [0 1] -> [0.9882879617006709]  :  [1]
+    // [1 0] -> [0.9910735517645498]  :  [1]
+    // [1 1] -> [0.008242910418753075]  :  [0]
 }
