@@ -17,6 +17,14 @@ func (v Vector) RandomFill() Vector {
 	return v
 }
 
+func (v Vector) Map(this func(float64)(float64)) Vector {
+	out := new(Vector).Init(len(v), 0.0)
+	for i, x := range v {
+		out[i] = this(x)
+	}
+	return out
+}
+
 func (v Vector) Cross(vec Vector) Matrix {
 	outMatrix := new(Matrix).Init(len(v), len(vec))
 	for i := 0; i < len(v); i++ {

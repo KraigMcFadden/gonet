@@ -1,31 +1,17 @@
 package gonet
 
 import (
-	"math"
 	"math/rand"
 )
-
-type ActivationFunction func(Vector)(Vector)
 
 func random(a, b float64) float64 {
 	return (b-a)*rand.Float64() + a
 }
 
-func sigmoid(vec Vector) Vector {
-	outVec := new(Vector).Init(len(vec), 0.0)
-	for i := 0; i < len(vec); i++ {
-		outVec[i] = 1.0 / (1.0 + math.Exp(-vec[i]))
+func ternary(condition bool, a, b float64) float64 {
+	if condition {
+		return a
+	} else {
+		return b
 	}
-	return outVec
-}
-
-func dsigmoid(vec Vector) Vector {
-	outVec := new(Vector).Init(len(vec), 0.0)
-	for i := 0; i < len(vec); i++ {
-		val := math.Exp(vec[i])
-		outVec[i] = val / ((1.0 + val) * (1.0 + val))
-
-		//outVec[i] = vec[i] * (1.0 - vec[i])
-	}
-	return outVec
 }

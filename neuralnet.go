@@ -14,19 +14,20 @@ type NeuralNet struct {
 	zs          []Vector       // weight times input
 	alphas      []Vector       // activation(z)
 	biases      []Vector       // bias values
-	activations []ActivationFunction         // the activation function at each layer
+	activations []*ActivationFunction         // the activation function at each layer
 	weights     []Matrix       // Weights for each layer
 	changes     []Matrix       // Last change in weights for momentum
 
-	numLayers   int            // helpful value to replace numNodes.length
+	numLayers   int            // helpful value to replace len(nn.numNodes)
 }
 
 /*
 Initialize the neural network;
 
-nodesPerLayer is an array of how many nodes should go into each layer
+nodesPerLayer is an array of how many nodes should go into each layer.
+activations is the activation function for each layer - do not specify an activation for input layer.
 */
-func (nn *NeuralNet) Init(nodesPerLayer []int) *NeuralNet {
+func (nn *NeuralNet) Init(nodesPerLayer []int, activations []*ActivationFunction) *NeuralNet {
 	
 	layers := len(nodesPerLayer)
 	nn.numLayers = layers
@@ -35,19 +36,19 @@ func (nn *NeuralNet) Init(nodesPerLayer []int) *NeuralNet {
 	nn.zs          = make([]Vector, layers)
 	nn.alphas      = make([]Vector, layers)
 	nn.biases      = make([]Vector, layers)
-	nn.activations = make([]ActivationFunction, layers)
+	nn.activations = make([]*ActivationFunction, layers)
 	nn.weights     = make([]Matrix, layers)
 	nn.changes     = make([]Matrix, layers)
 
 	for i := 0; i < layers; i++ {
-		nn.numNodes[i] = nodesPerLayer[i]
 
+		nn.numNodes[i] = nodesPerLayer[i]
 		nn.zs[i] = new(Vector).Init(nodesPerLayer[i], 0.0)
 		nn.alphas[i] = new(Vector).Init(nodesPerLayer[i], 0.0)
 
 		if i > 0 {
+			nn.activations[i] = activations[i - 1]
 			nn.biases[i] = new(Vector).Init(nodesPerLayer[i], 0.0).RandomFill()
-			nn.activations[i] = sigmoid
 			nn.weights[i] = new(Matrix).Init(nodesPerLayer[i], nodesPerLayer[i - 1]).RandomFill()
 			nn.changes[i] = new(Matrix).Init(nodesPerLayer[i], nodesPerLayer[i - 1])
 		}
@@ -59,7 +60,8 @@ func (nn *NeuralNet) Init(nodesPerLayer []int) *NeuralNet {
 /*
 The Update method is used to activate the Neural Network.
 
-Given an array of inputs, it returns an array, of length equivalent of number of outputs, with values ranging from 0 to 1.
+Given an array of inputs, it returns an array, of length equivalent of number of outputs, with values 
+ranging from the min to the max of the activation function at the output layer.
 */
 func (nn *NeuralNet) Update(inputs Vector) Vector {
 	if len(inputs) != nn.numNodes[0] {
@@ -75,7 +77,7 @@ func (nn *NeuralNet) Update(inputs Vector) Vector {
 	// feedforward through layers
 	for n := 1; n < nn.numLayers; n++ {
 		nn.zs[n] = nn.weights[n].Apply(nn.alphas[n - 1]).Add(nn.biases[n])
-		nn.alphas[n] = nn.activations[n](nn.zs[n])
+		nn.alphas[n] = nn.activations[n].F(nn.zs[n])
 	}
 
 	return nn.alphas[nn.numLayers - 1]
@@ -92,10 +94,10 @@ func (nn *NeuralNet) BackPropagate(labels Vector, eta, mFactor float64) float64 
 	
 	// compute deltas
 	deltas := make([]Vector, nn.numLayers)
-	deltas[outLayer] = dsigmoid(nn.zs[outLayer]).Mult(nn.alphas[outLayer].Sub(labels))
+	deltas[outLayer] = nn.activations[outLayer].Df(nn.zs[outLayer]).Mult(nn.alphas[outLayer].Sub(labels))
 	for n := outLayer; n - 1 > 0; n-- {
 		epsilons := nn.weights[n].ReverseApply(deltas[n])
-		deltas[n - 1] = dsigmoid(nn.zs[n - 1]).Mult(epsilons)
+		deltas[n - 1] = nn.activations[n].Df(nn.zs[n - 1]).Mult(epsilons)
 	}
 
 	// adjust weights and biases
