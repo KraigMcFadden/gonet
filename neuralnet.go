@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	//"strconv"
 )
 
 // NeuralNet struct is used to represent a simple neural network
@@ -91,40 +90,21 @@ func (nn *NeuralNet) BackPropagate(labels Vector, eta, mFactor float64) float64 
 		log.Fatal("Error: wrong number of target values")
 	}
 	
-	outputDeltas := dsigmoid(nn.zs[outLayer]).Mult(nn.alphas[outLayer].Sub(labels))
+	// compute deltas
+	deltas := make([]Vector, nn.numLayers)
+	deltas[outLayer] = dsigmoid(nn.zs[outLayer]).Mult(nn.alphas[outLayer].Sub(labels))
+	for n := outLayer; n - 1 > 0; n-- {
+		epsilons := nn.weights[n].ReverseApply(deltas[n])
+		deltas[n - 1] = dsigmoid(nn.zs[n - 1]).Mult(epsilons)
+	}
 
-	// for i := 0; i < numOutputs; i++ {
-	// 	outputDeltas[i] = dsigmoid(nn.OutputActivations[i]) * (labels[i] - nn.OutputActivations[i])
-	// }
-
-	epsilons := nn.weights[outLayer].ReverseApply(outputDeltas)
-	hiddenDeltas := dsigmoid(nn.zs[outLayer - 1]).Mult(epsilons)
-
-	// for i := 0; i < nn.NHiddens; i++ {
-	// 	for j := 0; j < nn.NOutputs; j++ {
-	// 		change := outputDeltas[j] * nn.HiddenActivations[i]
-	// 		nn.OutputWeights[i][j] = nn.OutputWeights[i][j] + eta*change + mFactor*nn.OutputChanges[i][j]
-	// 		nn.OutputChanges[i][j] = change
-	// 	}
-	// }
-
-	momentum := nn.changes[outLayer].Scale(mFactor)
-	nn.changes[outLayer] = outputDeltas.Cross(nn.alphas[outLayer - 1])
-	nn.weights[outLayer] = nn.weights[outLayer].Sub(nn.changes[outLayer].Scale(eta)).Sub(momentum)
-	nn.biases[outLayer] = nn.biases[outLayer].Sub(outputDeltas.Scale(eta))
-
-	// for i := 0; i < nn.NInputs; i++ {
-	// 	for j := 0; j < nn.NHiddens; j++ {
-	// 		change := hiddenDeltas[j] * nn.InputActivations[i]
-	// 		nn.InputWeights[i][j] = nn.InputWeights[i][j] + eta*change + mFactor*nn.InputChanges[i][j]
-	// 		nn.InputChanges[i][j] = change
-	// 	}
-	// }
-
-	momentum = nn.changes[outLayer - 1].Scale(mFactor)
-	nn.changes[outLayer - 1] = hiddenDeltas.Cross(nn.alphas[outLayer - 2])
-	nn.weights[outLayer - 1] = nn.weights[outLayer - 1].Sub(nn.changes[outLayer - 1].Scale(eta)).Sub(momentum)
-	nn.biases[outLayer - 1] = nn.biases[outLayer - 1].Sub(hiddenDeltas.Scale(eta))
+	// adjust weights and biases
+	for n := outLayer; n > 0; n-- {
+		momentum := nn.changes[n].Scale(mFactor)
+		nn.changes[n] = deltas[n].Cross(nn.alphas[n - 1])
+		nn.weights[n] = nn.weights[n].Sub(nn.changes[n].Scale(eta)).Sub(momentum)
+		nn.biases[n] = nn.biases[n].Sub(deltas[n].Scale(eta))
+	}
 
 	var e float64
 	for i := 0; i < len(labels); i++ {
@@ -136,15 +116,15 @@ func (nn *NeuralNet) BackPropagate(labels Vector, eta, mFactor float64) float64 
 This method is used to train the Network, it will run the training operation for 'iterations' times
 and return the computed errors when training.
 */
-func (nn *NeuralNet) Train(patterns [][][]float64, iterations int, eta, mFactor float64, debug bool) []float64 {
+func (nn *NeuralNet) Train(inputs, labels []Vector, iterations int, eta, mFactor float64, debug bool) []float64 {
 	errors := make([]float64, iterations)
 
 	for i := 0; i < iterations; i++ {
 		var e float64
-		for _, p := range patterns {
-			nn.Update(p[0])
+		for i := 0; i < len(inputs); i++ {
+			nn.Update(inputs[i])
 
-			tmp := nn.BackPropagate(p[1], eta, mFactor)
+			tmp := nn.BackPropagate(labels[i], eta, mFactor)
 			e += tmp
 		}
 
@@ -158,8 +138,8 @@ func (nn *NeuralNet) Train(patterns [][][]float64, iterations int, eta, mFactor 
 	return errors
 }
 
-func (nn *NeuralNet) Test(patterns [][][]float64) {
-	for _, p := range patterns {
-		fmt.Println(p[0], "->", nn.Update(p[0]), " : ", p[1])
+func (nn *NeuralNet) Test(inputs, labels []Vector) {
+	for i := 0; i < len(inputs); i++ {
+		fmt.Println(inputs[i], "->", nn.Update(inputs[i]), " : ", labels[i])
 	}
 }
