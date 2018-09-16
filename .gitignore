@@ -4,6 +4,7 @@
 *.so
 
 *.DS_Store
+*.csv
 
 # Folders
 _obj

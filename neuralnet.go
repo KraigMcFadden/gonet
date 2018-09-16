@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"sync"
+	"time"
 )
 
 // NeuralNet struct is used to represent a simple neural network
@@ -100,18 +102,27 @@ func (nn *NeuralNet) BackPropagate(labels Vector, eta, mFactor float64) float64 
 		deltas[n - 1] = nn.activations[n].Df(nn.zs[n - 1]).Mult(epsilons)
 	}
 
-	// adjust weights and biases
-	for n := outLayer; n > 0; n-- {
-		momentum := nn.changes[n].Scale(mFactor)
-		nn.changes[n] = deltas[n].Cross(nn.alphas[n - 1])
-		nn.weights[n] = nn.weights[n].Sub(nn.changes[n].Scale(eta)).Sub(momentum)
-		nn.biases[n] = nn.biases[n].Sub(deltas[n].Scale(eta))
+	// adjust weights and biases across each layer in parallel
+	var wg sync.WaitGroup
+	wg.Add(nn.numLayers - 1)
+	for i := outLayer; i > 0; i-- {
+
+		n := i
+		go func() {
+			defer wg.Done()
+			momentum := nn.changes[n].Scale(mFactor)
+			nn.changes[n] = deltas[n].Cross(nn.alphas[n - 1])
+			nn.weights[n] = nn.weights[n].Sub(nn.changes[n].Scale(eta)).Sub(momentum)
+			nn.biases[n] = nn.biases[n].Sub(deltas[n].Scale(eta))
+		}()
 	}
 
 	var e float64
 	for i := 0; i < len(labels); i++ {
 		e += 0.5 * math.Pow(labels[i] - nn.alphas[outLayer][i], 2)
 	}
+
+	wg.Wait()
 	return e
 }
 /*
@@ -122,6 +133,9 @@ func (nn *NeuralNet) Train(inputs, labels []Vector, iterations int, eta, mFactor
 	errors := make([]float64, iterations)
 
 	for i := 0; i < iterations; i++ {
+
+		start := time.Now()
+
 		var e float64
 		for i := 0; i < len(inputs); i++ {
 			nn.Update(inputs[i])
@@ -132,8 +146,10 @@ func (nn *NeuralNet) Train(inputs, labels []Vector, iterations int, eta, mFactor
 
 		errors[i] = e
 
-		if debug && i%1000 == 0 {
-			fmt.Println(i, e)
+		elapsed := time.Since(start).Seconds()
+
+		if debug {
+			fmt.Printf("%f percent complete - %f MSE - %f time for iteration\n", float64(i) / float64(iterations), e, elapsed)
 		}
 	}
 
